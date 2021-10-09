@@ -1,0 +1,188 @@
+// Project 2: Contact manager
+use std::fs::{File, OpenOptions};
+use std::io::{self, BufReader, BufWriter};
+use std::io::prelude::*;
+use std::collections::HashMap;
+// User stories:
+// * L1: I want to view my saved contacts. -> DONE
+// * L2: I want to add new contacts. -> DONE
+// * L2: I want to search for contacts. -> DONE (only by ID)
+// * L3: I want to edit and remove existing contacts. -> TO-DO later
+//
+// Tips:
+// * Make a backup of the existing `p2_data.csv` file.
+// * CSV files contain records and fields:
+//   Each line is a "record" which contain "fields" of information.
+//   The fields are separated by commas. If a field is not provided,
+//   then there is no data for that particular field. There will
+//   always be a comma for the field even if no data is present.
+// * The `id` and `name` fields are required, the `email` field is optional.
+// * Check the documentation on the `std::fs::File` struct for reading
+//   and writing files.
+// * Use the `split` function from the standard library to extract
+//   specific fields.
+// * Try the `structopt` crate if you want to make a non-interactive
+//   command line application.
+// * Create your program starting at level 1. Once finished, advance
+//   to the next level.
+// * Make your program robust: there are 7 errors & multiple blank lines
+//   present in the data.
+
+#[derive(Debug)]
+struct Person {
+    id : i32,
+    name : String,
+    email : Option<String>,
+}
+
+struct Menu {
+    file_path : String,
+    people_list : HashMap<i32, Person>,
+}
+
+impl Menu {
+    fn new(file_path : &str) -> Self {
+        Self {
+            file_path,
+            people_list : HashMap::new(),
+        }
+    }
+
+    fn read_from_file(&mut self) {
+        let file = File::open(self.file_path).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut buff = String::new();
+
+        //**skip the first line**
+        reader.read_line(&mut buff);
+        buff.clear();
+
+        //We are reading the CSV file until we encounter EOF, which is Ok(0).
+        while reader.read_line(&mut buff).unwrap() != 0 {
+            let v : Vec<&str> = buff.split(|c| c == ',' || c == '\n').collect();
+            let email_info = v.get(2).unwrap_or(&"").to_string();
+            let mut id = 0;
+            match get_correct_id(&v) {
+                None => {
+                    buff.clear();
+                    continue;
+                },
+                Some(value) => id = value,
+            };
+            self.people_list.insert(id, Person{
+                id,
+                name: match get_name(&v){
+                    None => {
+                        buff.clear();
+                        continue;
+                    },
+                    Some(data) => data,
+                }, 
+                email: if email_info == ""{
+                    None
+                }else {
+                    Some(v.get(2).unwrap_or(&"example name").to_owned().to_string())
+                }
+            });
+            buff.clear();
+        }
+    }
+
+    fn show_list(&self) {
+        for p in self.people_list.values() {
+            println!("{:?}", p);
+        }
+    }
+
+    fn add_person() -> std::io::Result<bool> {
+        let id = set_valid_id().unwrap();
+        println!("Enter your name:");
+        let name = match get_input() {
+            Ok(some) => some,
+            Err(_) => String::new(),
+        };
+        println!("And then e-mail (nothing means no e-mail provided):");
+        let email = match get_input() {
+            Ok(some) => {
+                if some == "".to_owned(){
+                    None
+                }else {
+                    Some(some)
+                }
+            },
+            Err(_) => None,
+        };
+    
+        let mut file_options = OpenOptions::new();
+        let file = file_options.write(true).append(true).open(filename)?;
+        let mut writer = BufWriter::new(file);
+        let formatted_person = match email {
+            Some(ref item) => format!("\n{},{},{:?}", id, name, item),
+            None => format!("\n{},{},", id, name),
+        };
+        writer.write(formatted_person.as_bytes())?;
+        hashmap.insert(id, Person { id, name, email });
+    
+        Ok(true)
+    }
+
+    fn person_exist_by_id(&self) -> bool {
+        let id = set_valid_id().unwrap_or(-1);
+
+        self.people_list.contains_key(id)
+    }
+}
+
+fn get_input() -> io::Result<String> {
+    let mut buff = String::new();
+
+    io::stdin().read_line(&mut buff)?;
+
+    Ok(buff.trim().to_string())
+}
+
+fn get_name(person_info : &Vec<&str>) -> Option<String> {
+    match person_info.get(1).unwrap_or(&"example name").to_owned() {
+        "example name" => return None,
+        "" => return None,
+        item => return Some(item.to_string()),
+    }
+}
+
+//Helper function for add_person().
+fn get_correct_id(v: &Vec<&str>) -> Option<i32> {
+    let id : String = v.get(0).unwrap().to_string();
+
+    let parsed = id.parse::<i32>();
+
+    match parsed {
+        Ok(correct) => Some(correct),
+        Err(_) => None,
+    }
+}
+
+fn set_valid_id() -> Option<i32> {
+    loop{
+        println!("Please provide a correct id:");
+        let input = match get_input(){
+            Ok(some) => some,
+            Err(_) => return None,
+        };
+        if &input == "" {
+            return None;
+        }
+
+        let parse = input.parse();
+
+        match parse {
+            Ok(amount) => return Some(amount),
+            Err(_) => println!("Please try again"),
+        };
+    }
+}
+
+fn main() -> io::Result<()> {
+
+    add_person("p2_data.csv", &mut people);
+    Ok(())
+}
